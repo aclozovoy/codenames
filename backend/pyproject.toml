@@ -1,0 +1,58 @@
+# pyproject.toml — the single source of truth for this Python project.
+# It replaces requirements.txt + setup.cfg + pytest.ini + separate linter configs.
+
+# --- Build system --------------------------------------------------------------
+# Tells pip/uv HOW to build this project into an installable package.
+# Hatchling is a modern, zero-config build backend that understands the
+# "src/" layout we use below.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# --- Project metadata + runtime dependencies -----------------------------------
+# Everything under [project] describes the app itself. `dependencies` is the
+# equivalent of your old requirements.txt — the packages needed to RUN the app.
+[project]
+name = "codenames"
+version = "0.1.0"
+description = "Codenames web game with LLM players (AWS Bedrock)."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",          # web API framework
+    "uvicorn[standard]>=0.30", # ASGI server that runs FastAPI
+    "pydantic>=2.8",           # data models / validation (FastAPI uses this)
+    "boto3>=1.35",             # AWS SDK — used later for Bedrock LLM calls
+]
+
+# Optional dependency GROUPS. Production installs only the `dependencies` above;
+# locally we add the `dev` group for testing + linting. Install with:
+#   uv pip install -e ".[dev]"
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",   # test runner
+    "ruff>=0.6",   # linter + formatter
+    "httpx>=0.27", # lets pytest call the FastAPI app in tests (later)
+]
+
+# --- Package discovery ---------------------------------------------------------
+# Our importable code lives in src/codenames/. This maps the import name
+# `codenames` to that folder so `from codenames.engine import ...` works after
+# an editable install (`-e`), with no sys.path hacks.
+[tool.hatch.build.targets.wheel]
+packages = ["src/codenames"]
+
+# --- pytest config -------------------------------------------------------------
+# Replaces a separate pytest.ini. Tells pytest where the tests live.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# --- ruff config (linter + formatter) ------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# Rule families to enforce:
+#   E/F = pyflakes + pycodestyle errors, I = import sorting,
+#   UP  = modernize old syntax,          B = likely-bug patterns.
+select = ["E", "F", "I", "UP", "B"]
