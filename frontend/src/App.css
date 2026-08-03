@@ -1,0 +1,231 @@
+:root {
+  --red: #d64545;
+  --red-dim: #f6d7d7;
+  --blue: #3f6fd6;
+  --blue-dim: #d5e0f7;
+  --neutral: #cbb994;
+  --neutral-dim: #eee6d3;
+  --assassin: #23252b;
+  --card-bg: #e9e5da;
+  --ink: #23252b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.app {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px 16px 60px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1.9rem;
+  letter-spacing: 0.5px;
+}
+
+.controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid #bbb;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+button:hover:not(:disabled) {
+  background: #f2f2f2;
+}
+
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid #bbb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.view-toggle button {
+  border: none;
+  border-radius: 0;
+  text-transform: capitalize;
+}
+
+.view-toggle button.active {
+  background: var(--ink);
+  color: #fff;
+}
+
+.error {
+  margin: 12px 0;
+  padding: 10px 14px;
+  background: #fde8e8;
+  border: 1px solid var(--red);
+  border-radius: 8px;
+  color: #922;
+}
+
+.hint {
+  color: #666;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #f4f2ec;
+  border-left: 6px solid #999;
+}
+
+.status.turn-red {
+  border-left-color: var(--red);
+}
+.status.turn-blue {
+  border-left-color: var(--blue);
+}
+.status.winner-red {
+  background: var(--red-dim);
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.status.winner-blue {
+  background: var(--blue-dim);
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.status .tag,
+.clue-form .tag {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #ddd;
+}
+
+.status .score {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.clue-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+
+.clue-form input {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid #bbb;
+  border-radius: 8px;
+}
+
+.clue-form input:not([type="number"]) {
+  flex: 1;
+  min-width: 160px;
+}
+
+.clue-form input[type="number"] {
+  width: 70px;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.card {
+  aspect-ratio: 5 / 3;
+  border-radius: 10px;
+  border: 1px solid #cfc9b8;
+  background: var(--card-bg);
+  color: var(--ink);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-size: clamp(0.7rem, 1.6vw, 1rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4px;
+}
+
+.card.clickable {
+  cursor: pointer;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.15);
+}
+.card.clickable:hover {
+  transform: translateY(-1px);
+  border-color: #999;
+}
+
+/* Spymaster tint for still-hidden cards */
+.card.hint-red {
+  background: var(--red-dim);
+  border-color: var(--red);
+}
+.card.hint-blue {
+  background: var(--blue-dim);
+  border-color: var(--blue);
+}
+.card.hint-neutral {
+  background: var(--neutral-dim);
+}
+.card.hint-assassin {
+  background: #4a4d55;
+  color: #fff;
+  border-color: #000;
+}
+
+/* Revealed cards */
+.card.revealed {
+  color: #fff;
+}
+.card.type-red {
+  background: var(--red);
+  border-color: var(--red);
+}
+.card.type-blue {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+.card.type-neutral {
+  background: var(--neutral);
+  color: var(--ink);
+}
+.card.type-assassin {
+  background: var(--assassin);
+}
+
+.pass {
+  margin-top: 6px;
+}
