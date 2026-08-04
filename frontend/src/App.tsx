@@ -101,11 +101,16 @@ export default function App() {
   const humanTurn = !!state && !winner && currentControl === "human";
   const aiTurn = !!state && !winner && !!config?.current_is_ai;
   const hasHuman = seats ? Object.values(seats).includes("human") : false;
+  // A human operative must not see the spymaster's reasoning — it names the
+  // target words. Hide it while such a game is in progress; reveal it at the end.
+  const hasHumanOperative =
+    !!seats && (seats.red_operative === "human" || seats.blue_operative === "human");
+  const hideReasoning = hasHumanOperative && !winner;
 
   return (
     <div className="app">
       <header className="topbar">
-        <h1>Codenames</h1>
+        <h1>Vibecodenames</h1>
         <div className="controls">
           {state && (
             <button onClick={backToSetup} disabled={busy}>
@@ -170,7 +175,7 @@ export default function App() {
           <aside className="sidebar">
             <ConfigSummary config={config} models={models} />
             <UsageBar usage={usage} />
-            <Thoughts moves={moves} />
+            {hideReasoning ? <ReasoningHidden /> : <Thoughts moves={moves} />}
           </aside>
         </div>
       )}
@@ -471,6 +476,18 @@ function moveTitle(m: MoveRecord): string {
   if (m.action === "guess") return `guessed ${m.word} → ${m.outcome}`;
   if (m.action === "pass") return "passed";
   return "wanted to pass (must guess first)";
+}
+
+function ReasoningHidden() {
+  return (
+    <div className="thoughts">
+      <h2>Model reasoning</h2>
+      <p className="hint">
+        🙈 Hidden while you're guessing — the spymaster's reasoning names the target
+        words. It'll appear here once the game ends.
+      </p>
+    </div>
+  );
 }
 
 function Thoughts({ moves }: { moves: MoveRecord[] }) {

@@ -162,6 +162,16 @@ class Game:
         self.history.append({"type": "pass", "team": self.current_team.value})
         self._end_turn()
 
+    def forfeit_turn(self) -> None:
+        """End the current team's turn without requiring a guess.
+
+        Unlike pass_turn, this does not require a prior guess. It exists for an
+        automated operative that cannot produce a valid guess and gives up."""
+        if self.phase is not Phase.AWAIT_GUESS:
+            raise InvalidMove(f"cannot forfeit during phase {self.phase.value}")
+        self.history.append({"type": "forfeit", "team": self.current_team.value})
+        self._end_turn()
+
     # -- internal helpers -------------------------------------------------------
 
     def _classify(self, card: Card, guessing_team: Team) -> GuessOutcome:

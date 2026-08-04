@@ -31,7 +31,7 @@ from .schemas import (
 )
 from .store import ALL_AI_SEATS, GameSession, GameStore
 
-app = FastAPI(title="Codenames", version="0.1.0")
+app = FastAPI(title="Vibecodenames", version="0.1.0")
 
 # Permissive CORS for local frontend dev (Vite on :5173, etc.). Tighten for prod.
 app.add_middleware(
@@ -224,7 +224,15 @@ async def llm_move(
                 "input_tokens": decision.input_tokens,
                 "output_tokens": decision.output_tokens,
             }
-            if decision.action == "pass":
+            if decision.action == "give_up":
+                # Couldn't produce a valid guess after retries — count it as a pass
+                # and end the turn (forfeit if no guess has been made yet).
+                if game.guesses_made >= 1:
+                    game.pass_turn()
+                else:
+                    game.forfeit_turn()
+                move.update(action="pass", outcome="pass")
+            elif decision.action == "pass":
                 if game.guesses_made >= 1:
                     game.pass_turn()
                     move.update(action="pass", outcome="pass")

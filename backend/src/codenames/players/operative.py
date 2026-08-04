@@ -12,8 +12,9 @@ from .prompts import build_operative_prompt
 
 @dataclass
 class GuessDecision:
-    action: str  # "guess" or "pass"
-    word: str | None  # the board word to guess; None when passing
+    # "guess", "pass" (voluntary), or "give_up" (couldn't produce a valid guess)
+    action: str
+    word: str | None  # the board word to guess; None when passing/giving up
     reasoning: str
     input_tokens: int
     output_tokens: int
@@ -30,7 +31,10 @@ class LLMOperative:
         available = {
             c["word"].upper() for c in game.operative_state()["cards"] if not c["revealed"]
         }
-        # Cheap models occasionally emit malformed/truncated JSON — retry a few times.
+        # Cheap models occasionally emit an invalid/malformed guess — retry a few
+        # times. If it still can't produce a valid guess, it gives up, which the
+        # caller treats as a pass (so a flailing model ends its turn cleanly rather
+        # than erroring).
         last_error: ValueError | None = None
         for _ in range(self.attempts):
             result = self.engine.run(system, user, self.model)
@@ -38,7 +42,14 @@ class LLMOperative:
                 return self._parse(result, available)
             except ValueError as exc:
                 last_error = exc
-        raise last_error  # type: ignore[misc]
+        return GuessDecision(
+            "give_up",
+            None,
+            f"Could not produce a valid guess after {self.attempts} tries "
+            f"({last_error}); giving up, which ends the turn.",
+            result.input_tokens,
+            result.output_tokens,
+        )
 
     def _parse(self, result, available: set[str]) -> GuessDecision:
         data = extract_json(result.text)

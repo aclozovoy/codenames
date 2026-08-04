@@ -118,11 +118,14 @@ def test_operative_can_pass():
     assert decision.word is None
 
 
-def test_operative_rejects_word_not_on_board():
+def test_operative_gives_up_after_repeated_invalid_guesses():
+    # An invalid word on every attempt -> the operative gives up (counts as a pass).
     game = _game_awaiting_guess()
     eng = engine_with(['{"action": "guess", "word": "NOPE"}'])
-    with pytest.raises(ValueError):
-        LLMOperative(eng, MODEL).next_move(game, Team.RED)
+    decision = LLMOperative(eng, MODEL, attempts=2).next_move(game, Team.RED)
+    assert decision.action == "give_up"
+    assert decision.word is None
+    assert eng.usage["calls"] == 2  # it retried before giving up
 
 
 def test_operative_prompt_hides_colours():

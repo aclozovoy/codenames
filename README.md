@@ -1,4 +1,4 @@
-# Codenames
+# Vibecodenames
 
 A web implementation of the board game **Codenames** where you can play with or
 against LLMs — or watch two models play each other — with every AI clue and guess

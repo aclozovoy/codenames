@@ -139,7 +139,9 @@ class _FakeLLM:
     def complete(self, model_id, system, user, max_tokens, temperature):
         from codenames.players import LLMResult
 
-        return LLMResult(self.responses.pop(0), input_tokens=100, output_tokens=50)
+        # Repeat the last queued item so retry attempts see the same response.
+        text = self.responses.pop(0) if len(self.responses) > 1 else self.responses[0]
+        return LLMResult(text, input_tokens=100, output_tokens=50)
 
 
 def test_llm_move_records_reasoning(client):
@@ -219,3 +221,29 @@ def test_llm_move_on_human_seat_is_409(client):
     gid = data["game_id"]
     resp = client.post(f"/games/{gid}/llm-move?view=spymaster")
     assert resp.status_code == 409
+
+
+def test_llm_operative_give_up_counts_as_pass(client):
+    from codenames.api.app import store
+    from codenames.players import LLMEngine
+
+    data = _create(client, starting_team="red")
+    gid = data["game_id"]
+    session = store.get(gid)
+
+    # Spymaster returns a valid clue; operative always returns an invalid word.
+    session._engine = LLMEngine(
+        _FakeLLM(
+            [
+                '{"clue": "ZZZQ", "number": 2, "reasoning": "x"}',  # clue
+                '{"action": "guess", "word": "NOPE"}',  # operative (repeated on retry)
+            ]
+        )
+    )
+    client.post(f"/games/{gid}/llm-move")  # spymaster -> await_guess
+    body = client.post(f"/games/{gid}/llm-move").json()  # operative gives up
+
+    # Turn ended (handed to blue), and the give-up was logged as a pass.
+    assert body["state"]["current_team"] == "blue"
+    assert body["state"]["phase"] == "await_clue"
+    assert body["moves"][-1]["action"] == "pass"

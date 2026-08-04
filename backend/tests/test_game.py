@@ -229,3 +229,17 @@ def test_spymaster_view_reveals_all_colours():
     by_word = {c["word"]: c for c in state["cards"]}
     assert by_word["A0"]["type"] == "assassin"
     assert by_word["R5"]["type"] == "red"
+
+
+def test_forfeit_turn_ends_turn_without_a_guess():
+    g = new_game()
+    g.give_clue("REDS", 2)
+    g.forfeit_turn()  # no guess made — still ends the turn
+    assert g.current_team is Team.BLUE
+    assert g.phase is Phase.AWAIT_CLUE
+
+
+def test_forfeit_only_during_await_guess():
+    g = new_game()  # AWAIT_CLUE
+    with pytest.raises(InvalidMove):
+        g.forfeit_turn()
