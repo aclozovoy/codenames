@@ -144,16 +144,17 @@ class _FakeLLM:
 
 def test_llm_move_records_reasoning(client):
     from codenames.api.app import store
-    from codenames.players import LLMEngine, ModelConfig
+    from codenames.players import LLMEngine
 
     data = _create(client, starting_team="red")
     gid = data["game_id"]
 
-    # Inject a fake engine so the endpoint doesn't call Bedrock.
+    # Inject a fake engine so the endpoint doesn't call Bedrock. The model is
+    # chosen per call from the session config (defaults to haiku); the fake
+    # client ignores the model id.
     session = store.get(gid)
     session._engine = LLMEngine(
-        _FakeLLM(['{"reasoning": "safe clue", "clue": "ZZZQ", "number": 2, "targets": []}']),
-        ModelConfig("fake", input_usd_per_mtok=1.0, output_usd_per_mtok=5.0),
+        _FakeLLM(['{"reasoning": "safe clue", "clue": "ZZZQ", "number": 2, "targets": []}'])
     )
 
     resp = client.post(f"/games/{gid}/llm-move?view=spymaster")
@@ -166,3 +167,55 @@ def test_llm_move_records_reasoning(client):
     assert last["action"] == "clue"
     assert last["reasoning"] == "safe clue"
     assert body["usage"]["calls"] == 1
+
+
+# -- game modes (seats + models) ----------------------------------------------
+
+
+def test_models_endpoint_lists_cheap_models(client):
+    models = client.get("/models").json()
+    keys = {m["key"] for m in models}
+    assert "haiku" in keys
+    assert all("input_usd_per_mtok" in m for m in models)
+
+
+def test_create_defaults_to_all_ai(client):
+    cfg = _create(client)["config"]
+    assert cfg["seats"] == {
+        "red_spymaster": "ai",
+        "red_operative": "ai",
+        "blue_spymaster": "ai",
+        "blue_operative": "ai",
+    }
+    assert cfg["models"] == {"red": "haiku", "blue": "haiku"}
+
+
+def test_create_with_seats_and_per_team_models(client):
+    resp = client.post(
+        "/games?view=spymaster",
+        json={
+            "starting_team": "red",
+            "seats": {"red_spymaster": "human"},
+            "models": {"red": "nova-micro", "blue": "haiku"},
+        },
+    )
+    assert resp.status_code == 201
+    cfg = resp.json()["config"]
+    assert cfg["seats"]["red_spymaster"] == "human"
+    assert cfg["seats"]["blue_operative"] == "ai"  # unspecified -> ai
+    assert cfg["models"] == {"red": "nova-micro", "blue": "haiku"}
+    # Red spymaster is human, so it's the current seat and not AI.
+    assert cfg["current_seat"] == "red_spymaster"
+    assert cfg["current_is_ai"] is False
+
+
+def test_create_rejects_unknown_model(client):
+    resp = client.post("/games", json={"models": {"red": "gpt-9"}})
+    assert resp.status_code == 400
+
+
+def test_llm_move_on_human_seat_is_409(client):
+    data = _create(client, starting_team="red", seats={"red_spymaster": "human"})
+    gid = data["game_id"]
+    resp = client.post(f"/games/{gid}/llm-move?view=spymaster")
+    assert resp.status_code == 409

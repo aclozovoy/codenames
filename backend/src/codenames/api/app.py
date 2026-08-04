@@ -19,7 +19,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
 from ..engine import InvalidMove, Phase
-from ..players import BudgetExceeded, LLMOperative, LLMSpymaster
+from ..players import MODELS, BudgetExceeded, LLMOperative, LLMSpymaster
 from .schemas import (
     ClueRequest,
     CreateGameRequest,
@@ -27,8 +27,9 @@ from .schemas import (
     GameView,
     GuessRequest,
     GuessResponse,
+    ModelInfo,
 )
-from .store import GameSession, GameStore
+from .store import ALL_AI_SEATS, GameSession, GameStore
 
 app = FastAPI(title="Codenames", version="0.1.0")
 
@@ -86,6 +87,20 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/models", response_model=list[ModelInfo])
+async def list_models() -> list[ModelInfo]:
+    """Selectable AI models for the New Game picker (cheap options only)."""
+    return [
+        ModelInfo(
+            key=key,
+            label=m.label,
+            input_usd_per_mtok=m.input_usd_per_mtok,
+            output_usd_per_mtok=m.output_usd_per_mtok,
+        )
+        for key, m in MODELS.items()
+    ]
+
+
 @app.get("/games", response_model=list[GameSummary])
 async def list_games() -> list[GameSummary]:
     return [
@@ -104,7 +119,15 @@ async def create_game(
     body: CreateGameRequest,
     view: ViewQuery = "operative",
 ) -> GameView:
-    session = store.create(starting_team=body.starting_team, seed=body.seed)
+    # Seats default to all-AI; provided seats override individually.
+    seats = {**ALL_AI_SEATS, **(body.seats or {})}
+    models = {"red": "haiku", "blue": "haiku", **(body.models or {})}
+    for key in models.values():
+        if key not in MODELS:
+            raise HTTPException(status_code=400, detail=f"unknown model {key!r}")
+    session = store.create(
+        starting_team=body.starting_team, seed=body.seed, seats=seats, models=models
+    )
     return GameView(**session.view_payload(view))
 
 
@@ -166,13 +189,16 @@ async def llm_move(
     game = session.game
     if game.phase is Phase.GAME_OVER:
         raise InvalidMove("game is over")
+    if not session.current_is_ai():
+        raise InvalidMove(f"{session.current_seat_key()} is a human seat — play it manually")
 
     async with session.lock:
         engine = session.ensure_engine()
         team = game.current_team
+        model = session.team_model(team)
 
         if game.phase is Phase.AWAIT_CLUE:
-            decision = await run_in_threadpool(LLMSpymaster(engine).give_clue, game, team)
+            decision = await run_in_threadpool(LLMSpymaster(engine, model).give_clue, game, team)
             game.give_clue(decision.word, decision.number)
             session.moves.append(
                 {
@@ -188,7 +214,7 @@ async def llm_move(
                 }
             )
         else:  # AWAIT_GUESS
-            decision = await run_in_threadpool(LLMOperative(engine).next_move, game, team)
+            decision = await run_in_threadpool(LLMOperative(engine, model).next_move, game, team)
             move = {
                 "seat": f"{team.value} operative",
                 "word": decision.word,

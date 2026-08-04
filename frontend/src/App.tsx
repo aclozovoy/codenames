@@ -1,22 +1,54 @@
 import { useCallback, useEffect, useState } from "react";
 import "./App.css";
 import * as api from "./api";
-import type { CardState, GameState, GameView, MoveRecord, Usage, ViewName } from "./types";
+import type {
+  CardState,
+  Control,
+  GameConfig,
+  GameState,
+  GameView,
+  ModelInfo,
+  MoveRecord,
+  Role,
+  SeatKey,
+  TeamName,
+  Usage,
+  ViewName,
+} from "./types";
+
+type Mode = "ai" | "single" | "two";
+
+function buildSeats(mode: Mode, team: TeamName, role: Role): Partial<Record<SeatKey, Control>> {
+  if (mode === "ai") return {};
+  if (mode === "single") return { [`${team}_${role}` as SeatKey]: "human" };
+  return { [`red_${role}` as SeatKey]: "human", [`blue_${role}` as SeatKey]: "human" };
+}
+
+function viewFor(mode: Mode, role: Role): ViewName {
+  return mode === "ai" ? "spymaster" : role;
+}
 
 export default function App() {
+  const [models, setModels] = useState<ModelInfo[]>([]);
   const [view, setView] = useState<ViewName>("spymaster");
   const [gameId, setGameId] = useState<string | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [moves, setMoves] = useState<MoveRecord[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [config, setConfig] = useState<GameConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.listModels().then(setModels).catch(() => setModels([]));
+  }, []);
 
   const applyView = useCallback((v: GameView) => {
     setGameId(v.game_id);
     setState(v.state);
     setMoves(v.moves ?? []);
     setUsage(v.usage ?? null);
+    setConfig(v.config ?? null);
   }, []);
 
   const run = useCallback(
@@ -34,7 +66,6 @@ export default function App() {
     [applyView],
   );
 
-  // Live updates: (re)open a WebSocket whenever the game or view changes.
   useEffect(() => {
     if (!gameId) return;
     const ws = api.openGameSocket(gameId, view);
@@ -43,60 +74,75 @@ export default function App() {
       setState(payload.state);
       setMoves(payload.moves ?? []);
       setUsage(payload.usage ?? null);
+      setConfig(payload.config ?? null);
     };
     return () => ws.close();
   }, [gameId, view]);
 
-  const newGame = () => run(() => api.createGame(view));
+  const startGame = (opts: api.CreateOptions, chosenView: ViewName) => {
+    setView(chosenView);
+    run(() => api.createGame(chosenView, opts));
+  };
 
-  const aiSeat =
-    state && state.phase === "await_clue"
-      ? `${state.current_team} spymaster`
-      : state
-        ? `${state.current_team} operative`
-        : "";
+  const backToSetup = () => {
+    setGameId(null);
+    setState(null);
+    setConfig(null);
+    setMoves([]);
+    setUsage(null);
+  };
+
+  // Seat-aware derived flags.
+  const seats = config?.seats;
+  const currentSeat = config?.current_seat ?? null;
+  const currentControl: Control | undefined =
+    seats && currentSeat ? seats[currentSeat] : undefined;
+  const winner = state?.winner ?? null;
+  const humanTurn = !!state && !winner && currentControl === "human";
+  const aiTurn = !!state && !winner && !!config?.current_is_ai;
+  const hasHuman = seats ? Object.values(seats).includes("human") : false;
 
   return (
     <div className="app">
       <header className="topbar">
         <h1>Codenames</h1>
         <div className="controls">
-          <button onClick={newGame} disabled={busy}>
-            New Game
-          </button>
-          <ViewToggle view={view} onChange={setView} />
+          {state && (
+            <button onClick={backToSetup} disabled={busy}>
+              New Game
+            </button>
+          )}
+          {state && !hasHuman && <ViewToggle view={view} onChange={setView} />}
         </div>
       </header>
 
       {error && <div className="error">⚠ {error}</div>}
 
       {!state ? (
-        <p className="hint">
-          Click <strong>New Game</strong> to start.
-        </p>
+        <Setup models={models} busy={busy} onStart={startGame} />
       ) : (
         <div className="layout">
           <main>
             <StatusBar state={state} />
 
-            {!state.winner && (
+            {aiTurn && (
               <div className="ai-bar">
                 <button
                   className="ai-move"
                   disabled={busy}
                   onClick={() => run(() => api.llmMove(gameId!, view))}
                 >
-                  {busy ? "🤖 thinking…" : `🤖 AI move — ${aiSeat}`}
+                  {busy ? "🤖 thinking…" : `🤖 AI move — ${currentSeat?.replace("_", " ")}`}
                 </button>
                 <span className="ai-hint">
                   {state.phase === "await_clue"
-                    ? "the spymaster will give a clue"
-                    : "the operative will make one guess"}
+                    ? "the AI spymaster will give a clue"
+                    : "the AI operative will make one guess"}
                 </span>
               </div>
             )}
 
-            {state.phase === "await_clue" && !state.winner && (
+            {state.phase === "await_clue" && humanTurn && (
               <ClueForm
                 team={state.current_team}
                 busy={busy}
@@ -106,17 +152,23 @@ export default function App() {
             <Board
               state={state}
               view={view}
+              canGuess={humanTurn && state.phase === "await_guess"}
               busy={busy}
               onGuess={(word) => run(() => api.makeGuess(gameId!, view, word))}
             />
-            {state.phase === "await_guess" && state.guesses_made >= 1 && !state.winner && (
-              <button className="pass" disabled={busy} onClick={() => run(() => api.passTurn(gameId!, view))}>
+            {humanTurn && state.phase === "await_guess" && state.guesses_made >= 1 && (
+              <button
+                className="pass"
+                disabled={busy}
+                onClick={() => run(() => api.passTurn(gameId!, view))}
+              >
                 Pass turn (end guessing)
               </button>
             )}
           </main>
 
           <aside className="sidebar">
+            <ConfigSummary config={config} models={models} />
             <UsageBar usage={usage} />
             <Thoughts moves={moves} />
           </aside>
@@ -125,6 +177,136 @@ export default function App() {
     </div>
   );
 }
+
+// -- setup screen --------------------------------------------------------------
+
+function Setup({
+  models,
+  busy,
+  onStart,
+}: {
+  models: ModelInfo[];
+  busy: boolean;
+  onStart: (opts: api.CreateOptions, view: ViewName) => void;
+}) {
+  const [mode, setMode] = useState<Mode>("ai");
+  const [team, setTeam] = useState<TeamName>("red");
+  const [role, setRole] = useState<Role>("spymaster");
+  const [redModel, setRedModel] = useState("haiku");
+  const [blueModel, setBlueModel] = useState("haiku");
+
+  const start = () => {
+    onStart(
+      {
+        seats: buildSeats(mode, team, role),
+        models: { red: redModel, blue: blueModel },
+      },
+      viewFor(mode, role),
+    );
+  };
+
+  return (
+    <div className="setup">
+      <h2>New game</h2>
+
+      <label className="setup-label">Mode</label>
+      <div className="chips">
+        {(
+          [
+            ["ai", "AI only"],
+            ["single", "Single player"],
+            ["two", "Two player (shared screen)"],
+          ] as [Mode, string][]
+        ).map(([m, label]) => (
+          <button key={m} className={mode === m ? "chip active" : "chip"} onClick={() => setMode(m)}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "single" && (
+        <>
+          <label className="setup-label">Your team</label>
+          <div className="chips">
+            {(["red", "blue"] as TeamName[]).map((t) => (
+              <button
+                key={t}
+                className={team === t ? `chip active team-${t}` : "chip"}
+                onClick={() => setTeam(t)}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {mode !== "ai" && (
+        <>
+          <label className="setup-label">
+            {mode === "two" ? "Both humans play as" : "Your role"}
+          </label>
+          <div className="chips">
+            {(["spymaster", "operative"] as Role[]).map((r) => (
+              <button
+                key={r}
+                className={role === r ? "chip active" : "chip"}
+                onClick={() => setRole(r)}
+              >
+                {mode === "two" ? `both ${r}s` : r}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <label className="setup-label">AI models</label>
+      <div className="model-picks">
+        <ModelSelect label="🔴 Red AI" value={redModel} models={models} onChange={setRedModel} />
+        <ModelSelect label="🔵 Blue AI" value={blueModel} models={models} onChange={setBlueModel} />
+      </div>
+
+      <button className="start" onClick={start} disabled={busy}>
+        {busy ? "Starting…" : "Start game"}
+      </button>
+      <p className="setup-note">{describe(mode, team, role)}</p>
+    </div>
+  );
+}
+
+function describe(mode: Mode, team: TeamName, role: Role): string {
+  if (mode === "ai") return "Both teams are AI. Step through with the AI move button and watch the reasoning.";
+  if (mode === "single")
+    return `You play the ${team} ${role}; AI fills the other three seats. You'll see the ${viewFor(mode, role)} view.`;
+  return `Two humans: red ${role} and blue ${role} (shared ${role} view). AI plays the ${role === "spymaster" ? "operatives" : "spymasters"}.`;
+}
+
+function ModelSelect({
+  label,
+  value,
+  models,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  models: ModelInfo[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className="model-select">
+      <span>{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        {models.map((m) => (
+          <option key={m.key} value={m.key}>
+            {m.label} (${m.input_usd_per_mtok}/${m.output_usd_per_mtok} per 1M)
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+// -- game components -----------------------------------------------------------
 
 function ViewToggle({ view, onChange }: { view: ViewName; onChange: (v: ViewName) => void }) {
   return (
@@ -184,12 +366,8 @@ function ClueForm({
         setWord("");
       }}
     >
-      <span className="tag">{team} spymaster</span>
-      <input
-        placeholder="clue word (or use AI move)"
-        value={word}
-        onChange={(e) => setWord(e.target.value)}
-      />
+      <span className="tag">{team} spymaster (you)</span>
+      <input placeholder="clue word" value={word} onChange={(e) => setWord(e.target.value)} />
       <input
         type="number"
         min={0}
@@ -207,15 +385,17 @@ function ClueForm({
 function Board({
   state,
   view,
+  canGuess,
   busy,
   onGuess,
 }: {
   state: GameState;
   view: ViewName;
+  canGuess: boolean;
   busy: boolean;
   onGuess: (word: string) => void;
 }) {
-  const canGuess = state.phase === "await_guess" && !state.winner && !busy;
+  const clickable = canGuess && !state.winner && !busy;
   return (
     <div className="board">
       {state.cards.map((card) => (
@@ -223,7 +403,7 @@ function Board({
           key={card.word}
           card={card}
           spymaster={view === "spymaster"}
-          clickable={canGuess && !card.revealed}
+          clickable={clickable && !card.revealed}
           onClick={() => onGuess(card.word)}
         />
       ))}
@@ -253,6 +433,25 @@ function CardTile({
     <button className={classes.join(" ")} disabled={!clickable} onClick={onClick}>
       {card.word}
     </button>
+  );
+}
+
+function ConfigSummary({ config, models }: { config: GameConfig | null; models: ModelInfo[] }) {
+  if (!config) return null;
+  const label = (key: string) => models.find((m) => m.key === key)?.label ?? key;
+  const seatLine = (seat: SeatKey) =>
+    config.seats[seat] === "human" ? "you" : `AI (${label(config.models[seat.startsWith("red") ? "red" : "blue"])})`;
+  return (
+    <div className="config">
+      <div className="config-row">
+        <span className="dot red" /> spymaster: {seatLine("red_spymaster")} · operative:{" "}
+        {seatLine("red_operative")}
+      </div>
+      <div className="config-row">
+        <span className="dot blue" /> spymaster: {seatLine("blue_spymaster")} · operative:{" "}
+        {seatLine("blue_operative")}
+      </div>
+    </div>
   );
 }
 

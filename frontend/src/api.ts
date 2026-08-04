@@ -1,7 +1,15 @@
 // Thin typed client over the FastAPI backend. Uses same-origin relative URLs,
 // which Vite proxies to http://localhost:8000 in dev (see vite.config.ts).
 
-import type { GameView, GuessResponse, TeamName, ViewName } from "./types";
+import type {
+  Control,
+  GameView,
+  GuessResponse,
+  ModelInfo,
+  SeatKey,
+  TeamName,
+  ViewName,
+} from "./types";
 
 async function handle<T>(resp: Response): Promise<T> {
   if (!resp.ok) {
@@ -20,6 +28,8 @@ async function handle<T>(resp: Response): Promise<T> {
 export interface CreateOptions {
   starting_team?: TeamName;
   seed?: number;
+  seats?: Partial<Record<SeatKey, Control>>;
+  models?: Partial<Record<TeamName, string>>;
 }
 
 export async function createGame(view: ViewName, opts: CreateOptions = {}): Promise<GameView> {
@@ -29,6 +39,10 @@ export async function createGame(view: ViewName, opts: CreateOptions = {}): Prom
     body: JSON.stringify(opts),
   });
   return handle<GameView>(resp);
+}
+
+export async function listModels(): Promise<ModelInfo[]> {
+  return handle<ModelInfo[]>(await fetch("/models"));
 }
 
 export async function getGame(gameId: string, view: ViewName): Promise<GameView> {

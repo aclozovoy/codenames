@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field
 
 TeamName = Literal["red", "blue"]
 ViewName = Literal["operative", "spymaster"]
+Control = Literal["human", "ai"]
+SeatKey = Literal["red_spymaster", "red_operative", "blue_spymaster", "blue_operative"]
 
 # -- board / state --------------------------------------------------------------
 
@@ -64,6 +66,24 @@ class Usage(BaseModel):
     budget_usd: float | None = None
 
 
+class GameConfig(BaseModel):
+    """Who controls each seat, which model each team's AI uses, and whose move it is."""
+
+    seats: dict[SeatKey, Control]
+    models: dict[TeamName, str]
+    current_seat: SeatKey | None = None
+    current_is_ai: bool = False
+
+
+class ModelInfo(BaseModel):
+    """A selectable AI model for the New Game picker."""
+
+    key: str
+    label: str
+    input_usd_per_mtok: float
+    output_usd_per_mtok: float
+
+
 class GameView(BaseModel):
     """A game's state as seen through one view (operative or spymaster)."""
 
@@ -72,6 +92,7 @@ class GameView(BaseModel):
     state: GameState
     moves: list[MoveRecord] = []
     usage: Usage | None = None
+    config: GameConfig | None = None
 
 
 class GameSummary(BaseModel):
@@ -89,6 +110,10 @@ class GameSummary(BaseModel):
 class CreateGameRequest(BaseModel):
     starting_team: TeamName | None = None  # None -> random
     seed: int | None = None  # set for a reproducible board
+    # Seat controls; omit for all-AI. Any seats left out default to "ai".
+    seats: dict[SeatKey, Control] | None = None
+    # AI model key per team (from GET /models). Defaults to "haiku".
+    models: dict[TeamName, str] | None = None
 
 
 class ClueRequest(BaseModel):
@@ -110,3 +135,4 @@ class GuessResponse(BaseModel):
     state: GameState
     moves: list[MoveRecord] = []
     usage: Usage | None = None
+    config: GameConfig | None = None

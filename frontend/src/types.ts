@@ -51,12 +51,31 @@ export interface Usage {
   budget_usd: number | null;
 }
 
+export type Control = "human" | "ai";
+export type SeatKey = "red_spymaster" | "red_operative" | "blue_spymaster" | "blue_operative";
+export type Role = "spymaster" | "operative";
+
+export interface GameConfig {
+  seats: Record<SeatKey, Control>;
+  models: Record<TeamName, string>;
+  current_seat: SeatKey | null;
+  current_is_ai: boolean;
+}
+
+export interface ModelInfo {
+  key: string;
+  label: string;
+  input_usd_per_mtok: number;
+  output_usd_per_mtok: number;
+}
+
 export interface GameView {
   game_id: string;
   view: ViewName;
   state: GameState;
   moves: MoveRecord[];
   usage: Usage | null;
+  config: GameConfig | null;
 }
 
 export interface GuessResponse extends GameView {

@@ -13,7 +13,7 @@ from codenames.players import (
 )
 from codenames.players.parsing import extract_json
 
-MODEL = ModelConfig(model_id="fake", input_usd_per_mtok=1.0, output_usd_per_mtok=5.0)
+MODEL = ModelConfig(model_id="fake", input_usd_per_mtok=1.0, output_usd_per_mtok=5.0, label="Fake")
 
 
 class FakeClient:
@@ -42,7 +42,7 @@ def make_board():
 
 
 def engine_with(responses, budget=None):
-    return LLMEngine(FakeClient(responses), MODEL, budget_usd=budget)
+    return LLMEngine(FakeClient(responses), budget_usd=budget)
 
 
 # -- JSON extraction -----------------------------------------------------------
@@ -69,7 +69,7 @@ def test_spymaster_parses_clue_and_reasoning():
             '"targets": ["R0", "R1"]}'
         ]
     )
-    decision = LLMSpymaster(eng).give_clue(game, Team.RED)
+    decision = LLMSpymaster(eng, MODEL).give_clue(game, Team.RED)
     assert decision.word == "LETTER"
     assert decision.number == 2
     assert decision.reasoning.startswith("R0 and R1")
@@ -81,13 +81,13 @@ def test_spymaster_rejects_multiword_clue():
     game = Game(make_board(), starting_team=Team.RED)
     eng = engine_with(['{"clue": "two words", "number": 1}'])
     with pytest.raises(ValueError):
-        LLMSpymaster(eng).give_clue(game, Team.RED)
+        LLMSpymaster(eng, MODEL).give_clue(game, Team.RED)
 
 
 def test_spymaster_prompt_hides_nothing_from_spymaster():
     game = Game(make_board(), starting_team=Team.RED)
     client = FakeClient(['{"clue": "x", "number": 1}'])
-    LLMSpymaster(LLMEngine(client, MODEL)).give_clue(game, Team.RED)
+    LLMSpymaster(LLMEngine(client), MODEL).give_clue(game, Team.RED)
     _, user = client.prompts[0]
     assert "A0" in user  # the assassin is shown to the spymaster
 
@@ -104,7 +104,7 @@ def _game_awaiting_guess():
 def test_operative_parses_guess():
     game = _game_awaiting_guess()
     eng = engine_with(['{"reasoning": "R0 fits", "action": "guess", "word": "R0"}'])
-    decision = LLMOperative(eng).next_move(game, Team.RED)
+    decision = LLMOperative(eng, MODEL).next_move(game, Team.RED)
     assert decision.action == "guess"
     assert decision.word == "R0"
     assert decision.reasoning == "R0 fits"
@@ -113,7 +113,7 @@ def test_operative_parses_guess():
 def test_operative_can_pass():
     game = _game_awaiting_guess()
     eng = engine_with(['{"reasoning": "too risky", "action": "pass"}'])
-    decision = LLMOperative(eng).next_move(game, Team.RED)
+    decision = LLMOperative(eng, MODEL).next_move(game, Team.RED)
     assert decision.action == "pass"
     assert decision.word is None
 
@@ -122,13 +122,13 @@ def test_operative_rejects_word_not_on_board():
     game = _game_awaiting_guess()
     eng = engine_with(['{"action": "guess", "word": "NOPE"}'])
     with pytest.raises(ValueError):
-        LLMOperative(eng).next_move(game, Team.RED)
+        LLMOperative(eng, MODEL).next_move(game, Team.RED)
 
 
 def test_operative_prompt_hides_colours():
     game = _game_awaiting_guess()
     client = FakeClient(['{"action": "guess", "word": "R0"}'])
-    LLMOperative(LLMEngine(client, MODEL)).next_move(game, Team.RED)
+    LLMOperative(LLMEngine(client), MODEL).next_move(game, Team.RED)
     _, user = client.prompts[0]
     # Operative sees the words but not their colours or the assassin label.
     assert "R0" in user
@@ -141,7 +141,7 @@ def test_operative_prompt_hides_colours():
 def test_engine_tracks_cost():
     eng = engine_with(['{"clue": "x", "number": 1}'])
     game = Game(make_board(), starting_team=Team.RED)
-    LLMSpymaster(eng).give_clue(game, Team.RED)
+    LLMSpymaster(eng, MODEL).give_clue(game, Team.RED)
     # 1000 in * $1/M + 500 out * $5/M = 0.001 + 0.0025 = 0.0035
     assert eng.usage["calls"] == 1
     assert eng.usage["usd"] == pytest.approx(0.0035)
@@ -151,7 +151,7 @@ def test_budget_guard_blocks_when_reached():
     # Budget below the cost of a single call -> first call ok, second blocked.
     eng = engine_with(['{"clue": "x", "number": 1}', '{"clue": "y", "number": 1}'], budget=0.004)
     game = Game(make_board(), starting_team=Team.RED)
-    sm = LLMSpymaster(eng)
+    sm = LLMSpymaster(eng, MODEL)
     sm.give_clue(game, Team.RED)  # spends 0.0035, now >= budget 0.004? no, 0.0035 < 0.004
     # Second call: 0.0035 < 0.004 so it still runs, pushing to 0.007
     sm.give_clue(game, Team.RED)

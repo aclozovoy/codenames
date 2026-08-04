@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..engine import Game, Team
-from .engine import LLMEngine
+from .engine import LLMEngine, ModelConfig
 from .parsing import extract_json
 from .prompts import build_operative_prompt
 
@@ -20,8 +20,9 @@ class GuessDecision:
 
 
 class LLMOperative:
-    def __init__(self, engine: LLMEngine, attempts: int = 2) -> None:
+    def __init__(self, engine: LLMEngine, model: ModelConfig, attempts: int = 2) -> None:
         self.engine = engine
+        self.model = model
         self.attempts = attempts
 
     def next_move(self, game: Game, team: Team) -> GuessDecision:
@@ -32,7 +33,7 @@ class LLMOperative:
         # Cheap models occasionally emit malformed/truncated JSON — retry a few times.
         last_error: ValueError | None = None
         for _ in range(self.attempts):
-            result = self.engine.run(system, user)
+            result = self.engine.run(system, user, self.model)
             try:
                 return self._parse(result, available)
             except ValueError as exc:

@@ -1,9 +1,9 @@
 """LLM invocation + cost tracking + a hard budget guard.
 
 `LLMEngine` wraps a client (Bedrock in production, a fake in tests), accumulates
-token usage and estimated USD spend, and refuses to make a call once a configured
-budget is reached. This is the cost guard we control directly — independent of any
-AWS-account budget.
+token usage and estimated USD spend across every model it runs, and refuses to
+make a call once a configured budget is reached. The model is chosen per call, so
+one engine (one shared budget) can drive different models on different seats.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ class LLMClient(Protocol):
 
 @dataclass(frozen=True)
 class ModelConfig:
-    """A model's Bedrock id, price, and sampling settings.
+    """A model's Bedrock id, display label, price, and sampling settings.
 
     Prices are USD per million tokens and are approximate — set them from the
     current AWS Bedrock pricing page. They're used only for the local cost guard
@@ -41,19 +41,38 @@ class ModelConfig:
     model_id: str
     input_usd_per_mtok: float
     output_usd_per_mtok: float
-    max_tokens: int = 512
+    label: str
+    max_tokens: int = 1024
     temperature: float = 0.4
 
 
-# Cheap-first registry. Haiku is validated against this account; add more as needed.
-# max_tokens is a ceiling with headroom for reasoning + JSON — the concise-reasoning
-# instruction in the prompts keeps actual output (and cost) well below it.
+# Cheap-first registry — every id below is verified to respond on this account
+# via the Converse API. Nova/Llama are dramatically cheaper than Haiku but play
+# more loosely; Haiku is the strongest of the cheap set.
 MODELS: dict[str, ModelConfig] = {
     "haiku": ModelConfig(
         model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         input_usd_per_mtok=1.0,
         output_usd_per_mtok=5.0,
-        max_tokens=1024,
+        label="Claude Haiku 4.5",
+    ),
+    "nova-lite": ModelConfig(
+        model_id="amazon.nova-lite-v1:0",
+        input_usd_per_mtok=0.06,
+        output_usd_per_mtok=0.24,
+        label="Amazon Nova Lite",
+    ),
+    "nova-micro": ModelConfig(
+        model_id="us.amazon.nova-micro-v1:0",
+        input_usd_per_mtok=0.035,
+        output_usd_per_mtok=0.14,
+        label="Amazon Nova Micro",
+    ),
+    "llama-8b": ModelConfig(
+        model_id="meta.llama3-1-8b-instruct-v1:0",
+        input_usd_per_mtok=0.22,
+        output_usd_per_mtok=0.22,
+        label="Llama 3.1 8B",
     ),
 }
 DEFAULT_MODEL = "haiku"
@@ -66,29 +85,29 @@ class BudgetExceeded(RuntimeError):
 @dataclass
 class LLMEngine:
     client: LLMClient
-    model: ModelConfig
     budget_usd: float | None = None
     total_usd: float = 0.0
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     calls: int = 0
 
-    def run(self, system: str, user: str) -> LLMResult:
-        """Make one completion, tracking cost. Hard-stops at the budget."""
+    def run(self, system: str, user: str, model: ModelConfig) -> LLMResult:
+        """Make one completion with the given model, tracking cost. Hard-stops
+        at the shared budget."""
         if self.budget_usd is not None and self.total_usd >= self.budget_usd:
             raise BudgetExceeded(
                 f"LLM budget of ${self.budget_usd:.2f} reached "
                 f"(spent ${self.total_usd:.4f} over {self.calls} calls)"
             )
         result = self.client.complete(
-            self.model.model_id, system, user, self.model.max_tokens, self.model.temperature
+            model.model_id, system, user, model.max_tokens, model.temperature
         )
         self.calls += 1
         self.total_input_tokens += result.input_tokens
         self.total_output_tokens += result.output_tokens
         self.total_usd += (
-            result.input_tokens / 1_000_000 * self.model.input_usd_per_mtok
-            + result.output_tokens / 1_000_000 * self.model.output_usd_per_mtok
+            result.input_tokens / 1_000_000 * model.input_usd_per_mtok
+            + result.output_tokens / 1_000_000 * model.output_usd_per_mtok
         )
         return result
 

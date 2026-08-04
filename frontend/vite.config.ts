@@ -8,6 +8,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/health": "http://localhost:8000",
+      "/models": "http://localhost:8000",
       "/games": {
         target: "http://localhost:8000",
         ws: true, // needed for the /games/{id}/ws WebSocket

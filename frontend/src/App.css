@@ -356,3 +356,113 @@ button:hover:not(:disabled) {
   color: #333;
   white-space: pre-wrap;
 }
+
+/* New Game setup screen */
+.setup {
+  max-width: 560px;
+  margin: 10px 0;
+  padding: 20px 22px;
+  border: 1px solid #e2ddcf;
+  border-radius: 12px;
+  background: #fbfaf6;
+}
+.setup h2 {
+  margin: 0 0 14px;
+}
+.setup-label {
+  display: block;
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #666;
+  margin: 16px 0 6px;
+}
+.chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chip {
+  text-transform: capitalize;
+}
+.chip.active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.chip.active.team-red {
+  background: var(--red);
+  border-color: var(--red);
+}
+.chip.active.team-blue {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+.model-picks {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.model-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  flex: 1;
+  min-width: 200px;
+}
+.model-select select {
+  font: inherit;
+  padding: 7px 8px;
+  border: 1px solid #bbb;
+  border-radius: 8px;
+  background: #fff;
+}
+.start {
+  margin-top: 20px;
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+  font-weight: 600;
+  padding: 10px 20px;
+}
+.start:hover:not(:disabled) {
+  background: #000;
+}
+.setup-note {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+  color: #777;
+}
+
+/* Sidebar seat/model summary */
+.config {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f4f2ec;
+  border: 1px solid #e2ddcf;
+  font-size: 0.8rem;
+  color: #555;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.config-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+}
+.dot.red {
+  background: var(--red);
+}
+.dot.blue {
+  background: var(--blue);
+}
