@@ -42,12 +42,36 @@ class GameState(BaseModel):
     cards: list[CardState]
 
 
+class MoveRecord(BaseModel):
+    """One LLM move plus the model's reasoning — the playback/thoughts log."""
+
+    seat: str  # e.g. "red spymaster", "blue operative"
+    action: str  # "clue" | "guess" | "pass" | "declined"
+    word: str | None = None
+    number: int | None = None
+    targets: list[str] = []
+    outcome: str | None = None  # guess outcome, when applicable
+    reasoning: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
+class Usage(BaseModel):
+    calls: int
+    input_tokens: int
+    output_tokens: int
+    usd: float
+    budget_usd: float | None = None
+
+
 class GameView(BaseModel):
     """A game's state as seen through one view (operative or spymaster)."""
 
     game_id: str
     view: ViewName
     state: GameState
+    moves: list[MoveRecord] = []
+    usage: Usage | None = None
 
 
 class GameSummary(BaseModel):
@@ -84,3 +108,5 @@ class GuessResponse(BaseModel):
     outcome: Literal["correct", "wrong_team", "neutral", "assassin"]
     view: ViewName
     state: GameState
+    moves: list[MoveRecord] = []
+    usage: Usage | None = None

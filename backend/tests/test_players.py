@@ -27,7 +27,10 @@ class FakeClient:
 
     def complete(self, model_id, system, user, max_tokens, temperature):
         self.prompts.append((system, user))
-        return LLMResult(self.responses.pop(0), self.input_tokens, self.output_tokens)
+        # Pop through the queue but repeat the last item, so retry attempts (which
+        # re-call on a parse failure) keep seeing the same canned response.
+        text = self.responses.pop(0) if len(self.responses) > 1 else self.responses[0]
+        return LLMResult(text, self.input_tokens, self.output_tokens)
 
 
 def make_board():

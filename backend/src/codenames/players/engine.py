@@ -46,11 +46,14 @@ class ModelConfig:
 
 
 # Cheap-first registry. Haiku is validated against this account; add more as needed.
+# max_tokens is a ceiling with headroom for reasoning + JSON — the concise-reasoning
+# instruction in the prompts keeps actual output (and cost) well below it.
 MODELS: dict[str, ModelConfig] = {
     "haiku": ModelConfig(
         model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         input_usd_per_mtok=1.0,
         output_usd_per_mtok=5.0,
+        max_tokens=1024,
     ),
 }
 DEFAULT_MODEL = "haiku"

@@ -20,14 +20,27 @@ class GuessDecision:
 
 
 class LLMOperative:
-    def __init__(self, engine: LLMEngine) -> None:
+    def __init__(self, engine: LLMEngine, attempts: int = 2) -> None:
         self.engine = engine
+        self.attempts = attempts
 
     def next_move(self, game: Game, team: Team) -> GuessDecision:
         system, user = build_operative_prompt(game, team)
-        result = self.engine.run(system, user)
-        data = extract_json(result.text)
+        available = {
+            c["word"].upper() for c in game.operative_state()["cards"] if not c["revealed"]
+        }
+        # Cheap models occasionally emit malformed/truncated JSON — retry a few times.
+        last_error: ValueError | None = None
+        for _ in range(self.attempts):
+            result = self.engine.run(system, user)
+            try:
+                return self._parse(result, available)
+            except ValueError as exc:
+                last_error = exc
+        raise last_error  # type: ignore[misc]
 
+    def _parse(self, result, available: set[str]) -> GuessDecision:
+        data = extract_json(result.text)
         action = str(data.get("action", "")).strip().lower()
         reasoning = str(data.get("reasoning", "")).strip()
 
@@ -39,8 +52,6 @@ class LLMOperative:
             raise ValueError(f"operative returned no valid word to guess: {data!r}")
 
         target = word.strip().upper()
-        cards = game.operative_state()["cards"]
-        available = {c["word"].upper() for c in cards if not c["revealed"]}
         if target not in available:
             raise ValueError(f"operative guessed {word!r}, which is not an available board word")
 

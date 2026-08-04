@@ -38,10 +38,11 @@ def build_spymaster_prompt(game: Game, team: Team) -> tuple[str, str]:
         f"ASSASSIN (never point here): {', '.join(assassin)}\n\n"
         'Respond with JSON: {"reasoning": "...", "clue": "WORD", "number": N, '
         '"targets": ["WORD", ...]}\n'
-        "- reasoning: a brief explanation of your thinking\n"
+        "- reasoning: a concise explanation of your thinking, at most 3 sentences\n"
         "- clue: a single word not on the board\n"
         "- number: how many of YOUR words the clue points to (a positive integer)\n"
-        "- targets: the list of your words you intend the clue to point to"
+        "- targets: the list of your words you intend the clue to point to\n"
+        "Keep it short so the JSON is complete. Output only the JSON object."
     )
     return system, user
 
@@ -73,6 +74,7 @@ def build_operative_prompt(game: Game, team: Team) -> tuple[str, str]:
         f"Already revealed: {', '.join(revealed) if revealed else 'none'}\n\n"
         'Respond with JSON: {"reasoning": "...", "action": "guess", "word": "WORD"} to guess, '
         'or {"reasoning": "...", "action": "pass"} to stop guessing this turn.\n'
-        "- word must be exactly one of the words still on the board."
+        "- word must be exactly one of the words still on the board.\n"
+        "- reasoning: concise, at most 3 sentences. Output only the JSON object."
     )
     return system, user

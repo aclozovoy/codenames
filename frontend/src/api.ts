@@ -66,6 +66,11 @@ export async function passTurn(gameId: string, view: ViewName): Promise<GameView
   return handle<GameView>(await fetch(`/games/${gameId}/pass?view=${view}`, { method: "POST" }));
 }
 
+/** Advance the game by one LLM action (spymaster clue or one operative guess). */
+export async function llmMove(gameId: string, view: ViewName): Promise<GameView> {
+  return handle<GameView>(await fetch(`/games/${gameId}/llm-move?view=${view}`, { method: "POST" }));
+}
+
 /** Open a live WebSocket for a game/view. Caller handles messages + cleanup. */
 export function openGameSocket(gameId: string, view: ViewName): WebSocket {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";

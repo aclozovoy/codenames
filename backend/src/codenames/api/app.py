@@ -15,9 +15,11 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
-from ..engine import InvalidMove
+from ..engine import InvalidMove, Phase
+from ..players import BudgetExceeded, LLMOperative, LLMSpymaster
 from .schemas import (
     ClueRequest,
     CreateGameRequest,
@@ -53,6 +55,12 @@ async def _invalid_move_handler(request: Request, exc: InvalidMove) -> JSONRespo
 @app.exception_handler(ValueError)
 async def _value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
     return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+@app.exception_handler(BudgetExceeded)
+async def _budget_handler(request: Request, exc: BudgetExceeded) -> JSONResponse:
+    # 402 Payment Required — the game's LLM spend cap was reached.
+    return JSONResponse(status_code=402, content={"detail": str(exc)})
 
 
 # -- dependencies ---------------------------------------------------------------
@@ -141,6 +149,70 @@ async def pass_turn(
     async with session.lock:
         session.game.pass_turn()
         await session.broadcast()
+    return GameView(**session.view_payload(view))
+
+
+@app.post("/games/{game_id}/llm-move", response_model=GameView)
+async def llm_move(
+    session: SessionDep,
+    view: ViewQuery = "operative",
+) -> GameView:
+    """Advance the game by one LLM action for whoever is currently on the move.
+
+    AWAIT_CLUE -> the current team's spymaster produces a clue.
+    AWAIT_GUESS -> the current team's operative makes one guess (or passes).
+    Each move is recorded with the model's reasoning in the session's move log.
+    """
+    game = session.game
+    if game.phase is Phase.GAME_OVER:
+        raise InvalidMove("game is over")
+
+    async with session.lock:
+        engine = session.ensure_engine()
+        team = game.current_team
+
+        if game.phase is Phase.AWAIT_CLUE:
+            decision = await run_in_threadpool(LLMSpymaster(engine).give_clue, game, team)
+            game.give_clue(decision.word, decision.number)
+            session.moves.append(
+                {
+                    "seat": f"{team.value} spymaster",
+                    "action": "clue",
+                    "word": decision.word,
+                    "number": decision.number,
+                    "targets": decision.targets,
+                    "outcome": None,
+                    "reasoning": decision.reasoning,
+                    "input_tokens": decision.input_tokens,
+                    "output_tokens": decision.output_tokens,
+                }
+            )
+        else:  # AWAIT_GUESS
+            decision = await run_in_threadpool(LLMOperative(engine).next_move, game, team)
+            move = {
+                "seat": f"{team.value} operative",
+                "word": decision.word,
+                "number": None,
+                "targets": [],
+                "reasoning": decision.reasoning,
+                "input_tokens": decision.input_tokens,
+                "output_tokens": decision.output_tokens,
+            }
+            if decision.action == "pass":
+                if game.guesses_made >= 1:
+                    game.pass_turn()
+                    move.update(action="pass", outcome="pass")
+                else:
+                    # A team must guess at least once; record the declined pass
+                    # without changing state so the user can trigger another move.
+                    move.update(action="declined", outcome=None)
+            else:
+                outcome = game.guess(decision.word)
+                move.update(action="guess", outcome=outcome.value)
+            session.moves.append(move)
+
+        await session.broadcast()
+
     return GameView(**session.view_payload(view))
 
 

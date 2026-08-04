@@ -15,7 +15,7 @@
 }
 
 .app {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 20px 16px 60px;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -228,4 +228,131 @@ button:hover:not(:disabled) {
 
 .pass {
   margin-top: 6px;
+}
+
+/* Two-column layout: board + controls on the left, reasoning on the right */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ai-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+
+.ai-move {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.ai-move:hover:not(:disabled) {
+  background: #000;
+}
+.ai-move:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.ai-hint {
+  color: #777;
+  font-size: 0.9rem;
+}
+
+.sidebar {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.usage {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f4f2ec;
+  border: 1px solid #e2ddcf;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: #555;
+}
+
+.thoughts h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.thought-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 70vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.thought {
+  border: 1px solid #e2ddcf;
+  border-left: 4px solid #999;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: #fbfaf6;
+}
+.thought.seat-red {
+  border-left-color: var(--red);
+}
+.thought.seat-blue {
+  border-left-color: var(--blue);
+}
+
+.thought-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.thought-seat {
+  font-weight: 700;
+  text-transform: capitalize;
+  font-size: 0.8rem;
+}
+
+.thought-outcome {
+  font-size: 0.8rem;
+  color: #555;
+}
+.thought-outcome.outcome-correct {
+  color: #2b7a2b;
+  font-weight: 600;
+}
+.thought-outcome.outcome-wrong_team,
+.thought-outcome.outcome-assassin,
+.thought-outcome.outcome-declined {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.thought-body {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #333;
+  white-space: pre-wrap;
 }

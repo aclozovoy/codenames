@@ -125,3 +125,44 @@ def test_websocket_receives_initial_and_updates(client):
         client.post(f"/games/{gid}/clue", json={"word": "SPY", "number": 1})
         update = ws.receive_json()
         assert update["state"]["current_clue"] == {"word": "SPY", "number": 1}
+
+
+# -- LLM move endpoint (with a fake client, no Bedrock) ------------------------
+
+
+class _FakeLLM:
+    """Stand-in for BedrockClient — returns queued canned completions."""
+
+    def __init__(self, responses):
+        self.responses = list(responses)
+
+    def complete(self, model_id, system, user, max_tokens, temperature):
+        from codenames.players import LLMResult
+
+        return LLMResult(self.responses.pop(0), input_tokens=100, output_tokens=50)
+
+
+def test_llm_move_records_reasoning(client):
+    from codenames.api.app import store
+    from codenames.players import LLMEngine, ModelConfig
+
+    data = _create(client, starting_team="red")
+    gid = data["game_id"]
+
+    # Inject a fake engine so the endpoint doesn't call Bedrock.
+    session = store.get(gid)
+    session._engine = LLMEngine(
+        _FakeLLM(['{"reasoning": "safe clue", "clue": "ZZZQ", "number": 2, "targets": []}']),
+        ModelConfig("fake", input_usd_per_mtok=1.0, output_usd_per_mtok=5.0),
+    )
+
+    resp = client.post(f"/games/{gid}/llm-move?view=spymaster")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"]["phase"] == "await_guess"
+    assert body["state"]["current_clue"] == {"word": "ZZZQ", "number": 2}
+    last = body["moves"][-1]
+    assert last["seat"] == "red spymaster"
+    assert last["action"] == "clue"
+    assert last["reasoning"] == "safe clue"
+    assert body["usage"]["calls"] == 1

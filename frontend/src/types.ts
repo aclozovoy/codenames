@@ -31,10 +31,32 @@ export interface GameState {
   cards: CardState[];
 }
 
+export interface MoveRecord {
+  seat: string; // e.g. "red spymaster", "blue operative"
+  action: "clue" | "guess" | "pass" | "declined";
+  word: string | null;
+  number: number | null;
+  targets: string[];
+  outcome: Outcome | "pass" | null;
+  reasoning: string;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface Usage {
+  calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  usd: number;
+  budget_usd: number | null;
+}
+
 export interface GameView {
   game_id: string;
   view: ViewName;
   state: GameState;
+  moves: MoveRecord[];
+  usage: Usage | null;
 }
 
 export interface GuessResponse extends GameView {
