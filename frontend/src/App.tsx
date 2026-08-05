@@ -484,8 +484,26 @@ function moveTitle(m: MoveRecord): string {
   return "wanted to pass (must guess first)";
 }
 
-function logLine(e: LogEntry): string {
-  if (e.type === "clue") return `clue “${e.word}” ${e.number}`;
+interface Turn {
+  team: TeamName;
+  clue: LogEntry | null;
+  plays: LogEntry[];
+}
+
+function groupTurns(log: LogEntry[]): Turn[] {
+  const turns: Turn[] = [];
+  for (const e of log) {
+    if (e.type === "clue") {
+      turns.push({ team: e.team, clue: e, plays: [] });
+    } else {
+      if (turns.length === 0) turns.push({ team: e.team, clue: null, plays: [] });
+      turns[turns.length - 1].plays.push(e);
+    }
+  }
+  return turns;
+}
+
+function playLine(e: LogEntry): string {
   if (e.type === "guess") {
     const mark =
       e.outcome === "correct"
@@ -510,6 +528,7 @@ function GameLog({
   show: boolean;
   onToggle: () => void;
 }) {
+  const turns = groupTurns(log);
   return (
     <div className="gamelog">
       <div className="gamelog-head">
@@ -519,14 +538,28 @@ function GameLog({
         </button>
       </div>
       {show &&
-        (log.length === 0 ? (
+        (turns.length === 0 ? (
           <p className="hint">No clues or guesses yet.</p>
         ) : (
-          <ol className="log-list">
-            {log.map((e, i) => (
-              <li key={i} className={`log-entry team-${e.team}`}>
-                <span className={`dot ${e.team}`} />
-                {logLine(e)}
+          <ol className="turn-list">
+            {turns.map((t, i) => (
+              <li key={i} className={`log-turn team-${t.team}`}>
+                <div className="log-turn-head">
+                  <span className={`dot ${t.team}`} />
+                  <span className="turn-num">Turn {i + 1}</span>
+                  {t.clue && (
+                    <span className="turn-clue">
+                      “{t.clue.word}” {t.clue.number}
+                    </span>
+                  )}
+                </div>
+                {t.plays.length > 0 && (
+                  <ul className="log-plays">
+                    {t.plays.map((p, j) => (
+                      <li key={j}>{playLine(p)}</li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ol>
