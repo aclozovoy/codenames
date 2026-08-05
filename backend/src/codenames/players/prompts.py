@@ -9,6 +9,26 @@ from __future__ import annotations
 from ..engine import Game, Team
 
 
+def format_history(game: Game) -> str:
+    """A public, running log of clues and guesses so far (both teams).
+
+    Everything here is public knowledge — clues are announced and a guessed card's
+    colour is revealed on the board — so it's safe in both prompts.
+    """
+    lines: list[str] = []
+    for e in game.history:
+        team = str(e.get("team", "")).upper()
+        if e["type"] == "clue":
+            lines.append(f'{team} clue "{e["word"]}" {e["number"]}')
+        elif e["type"] == "guess":
+            lines.append(f"{team} guessed {e['word']} ({e['card_type']}, {e['outcome']})")
+        elif e["type"] == "pass":
+            lines.append(f"{team} passed")
+        elif e["type"] == "forfeit":
+            lines.append(f"{team} ended its turn without a valid guess")
+    return "\n".join(f"- {line}" for line in lines) if lines else "(no moves yet)"
+
+
 def build_spymaster_prompt(game: Game, team: Team) -> tuple[str, str]:
     state = game.spymaster_state()
     yours, theirs, neutral, assassin = [], [], [], []
@@ -36,6 +56,7 @@ def build_spymaster_prompt(game: Game, team: Team) -> tuple[str, str]:
         f"OPPONENT words ({team.opponent.value}): {', '.join(theirs)}\n"
         f"NEUTRAL bystanders: {', '.join(neutral)}\n"
         f"ASSASSIN (never point here): {', '.join(assassin)}\n\n"
+        f"Clues and guesses so far:\n{format_history(game)}\n\n"
         'Respond with JSON: {"reasoning": "...", "clue": "WORD", "number": N, '
         '"targets": ["WORD", ...]}\n'
         "- reasoning: a concise explanation of your thinking, at most 3 sentences\n"
@@ -72,6 +93,7 @@ def build_operative_prompt(game: Game, team: Team) -> tuple[str, str]:
         f"Guesses remaining this turn: {remaining}\n"
         f"Words still on the board: {', '.join(unrevealed)}\n"
         f"Already revealed: {', '.join(revealed) if revealed else 'none'}\n\n"
+        f"Clues and guesses so far:\n{format_history(game)}\n\n"
         'Respond with JSON: {"reasoning": "...", "action": "guess", "word": "WORD"} to guess, '
         'or {"reasoning": "...", "action": "pass"} to stop guessing this turn.\n'
         "- word must be exactly one of the words still on the board.\n"

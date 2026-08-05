@@ -247,3 +247,25 @@ def test_llm_operative_give_up_counts_as_pass(client):
     assert body["state"]["current_team"] == "blue"
     assert body["state"]["phase"] == "await_clue"
     assert body["moves"][-1]["action"] == "pass"
+
+
+def test_game_log_records_clues_and_guesses(client):
+    data = _create(client, starting_team="red")
+    gid = data["game_id"]
+    colors = _cards_by_color(client, gid)
+
+    client.post(f"/games/{gid}/clue", json={"word": "SPY", "number": 2})
+    body = client.post(f"/games/{gid}/guess", json={"word": colors["red"][0]}).json()
+
+    log = body["log"]
+    assert log[0] == {
+        "type": "clue",
+        "team": "red",
+        "word": "SPY",
+        "number": 2,
+        "card_type": None,
+        "outcome": None,
+    }
+    assert log[1]["type"] == "guess"
+    assert log[1]["card_type"] == "red"
+    assert log[1]["outcome"] == "correct"

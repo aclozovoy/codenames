@@ -69,6 +69,15 @@ export interface ModelInfo {
   output_usd_per_mtok: number;
 }
 
+export interface LogEntry {
+  type: "clue" | "guess" | "pass" | "forfeit";
+  team: TeamName;
+  word: string | null;
+  number: number | null;
+  card_type: CardType | null;
+  outcome: Outcome | null;
+}
+
 export interface GameView {
   game_id: string;
   view: ViewName;
@@ -76,6 +85,7 @@ export interface GameView {
   moves: MoveRecord[];
   usage: Usage | null;
   config: GameConfig | null;
+  log: LogEntry[];
 }
 
 export interface GuessResponse extends GameView {

@@ -67,6 +67,14 @@ class Game:
         wanted = team.card_type
         return sum(1 for c in self.board if c.type is wanted and not c.revealed)
 
+    def move_log(self) -> list[dict]:
+        """Public running log of clues and guesses (both teams, human and AI).
+
+        Everything here is public: clues are announced and a guessed card's colour
+        is revealed on the board once played. Excludes the internal game_over entry.
+        """
+        return [e for e in self.history if e["type"] in ("clue", "guess", "pass", "forfeit")]
+
     def _find_card(self, word: str) -> Card | None:
         target = word.strip().upper()
         for card in self.board:

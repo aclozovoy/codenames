@@ -58,6 +58,17 @@ class MoveRecord(BaseModel):
     output_tokens: int = 0
 
 
+class LogEntry(BaseModel):
+    """One entry in the public running log of clues and guesses."""
+
+    type: Literal["clue", "guess", "pass", "forfeit"]
+    team: TeamName
+    word: str | None = None
+    number: int | None = None
+    card_type: Literal["red", "blue", "neutral", "assassin"] | None = None
+    outcome: str | None = None
+
+
 class Usage(BaseModel):
     calls: int
     input_tokens: int
@@ -93,6 +104,7 @@ class GameView(BaseModel):
     moves: list[MoveRecord] = []
     usage: Usage | None = None
     config: GameConfig | None = None
+    log: list[LogEntry] = []
 
 
 class GameSummary(BaseModel):
@@ -136,3 +148,4 @@ class GuessResponse(BaseModel):
     moves: list[MoveRecord] = []
     usage: Usage | None = None
     config: GameConfig | None = None
+    log: list[LogEntry] = []

@@ -90,6 +90,7 @@ class GameSession:
             "view": view,
             "state": state,
             "moves": self.moves,
+            "log": self.game.move_log(),
             "usage": self._engine.usage if self._engine else None,
             "config": {
                 "seats": self.seats,

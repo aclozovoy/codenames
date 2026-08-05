@@ -7,6 +7,7 @@ import type {
   GameConfig,
   GameState,
   GameView,
+  LogEntry,
   ModelInfo,
   MoveRecord,
   Role,
@@ -34,6 +35,8 @@ export default function App() {
   const [gameId, setGameId] = useState<string | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [moves, setMoves] = useState<MoveRecord[]>([]);
+  const [log, setLog] = useState<LogEntry[]>([]);
+  const [showLog, setShowLog] = useState(true);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [config, setConfig] = useState<GameConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +50,7 @@ export default function App() {
     setGameId(v.game_id);
     setState(v.state);
     setMoves(v.moves ?? []);
+    setLog(v.log ?? []);
     setUsage(v.usage ?? null);
     setConfig(v.config ?? null);
   }, []);
@@ -73,6 +77,7 @@ export default function App() {
       const payload = JSON.parse(ev.data) as GameView;
       setState(payload.state);
       setMoves(payload.moves ?? []);
+      setLog(payload.log ?? []);
       setUsage(payload.usage ?? null);
       setConfig(payload.config ?? null);
     };
@@ -175,6 +180,7 @@ export default function App() {
           <aside className="sidebar">
             <ConfigSummary config={config} models={models} />
             <UsageBar usage={usage} />
+            <GameLog log={log} show={showLog} onToggle={() => setShowLog((s) => !s)} />
             {hideReasoning ? <ReasoningHidden /> : <Thoughts moves={moves} />}
           </aside>
         </div>
@@ -476,6 +482,57 @@ function moveTitle(m: MoveRecord): string {
   if (m.action === "guess") return `guessed ${m.word} → ${m.outcome}`;
   if (m.action === "pass") return "passed";
   return "wanted to pass (must guess first)";
+}
+
+function logLine(e: LogEntry): string {
+  if (e.type === "clue") return `clue “${e.word}” ${e.number}`;
+  if (e.type === "guess") {
+    const mark =
+      e.outcome === "correct"
+        ? "✓"
+        : e.outcome === "assassin"
+          ? "💀 assassin"
+          : e.outcome === "neutral"
+            ? "· neutral"
+            : "✗ opponent";
+    return `${e.word} (${e.card_type}) ${mark}`;
+  }
+  if (e.type === "pass") return "passed";
+  return "ended turn (no guess)";
+}
+
+function GameLog({
+  log,
+  show,
+  onToggle,
+}: {
+  log: LogEntry[];
+  show: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="gamelog">
+      <div className="gamelog-head">
+        <h2>Game log</h2>
+        <button className="link-btn" onClick={onToggle}>
+          {show ? "hide" : "show"}
+        </button>
+      </div>
+      {show &&
+        (log.length === 0 ? (
+          <p className="hint">No clues or guesses yet.</p>
+        ) : (
+          <ol className="log-list">
+            {log.map((e, i) => (
+              <li key={i} className={`log-entry team-${e.team}`}>
+                <span className={`dot ${e.team}`} />
+                {logLine(e)}
+              </li>
+            ))}
+          </ol>
+        ))}
+    </div>
+  );
 }
 
 function ReasoningHidden() {
