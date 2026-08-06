@@ -92,6 +92,30 @@ Two layers:
 2. **AWS Budget** — an account-level monthly budget with email alerts at
    50/80/100%.
 
+## Model-vs-model tournament
+
+Play AI-vs-AI games in batch and record every result locally to analyze win
+rates. It drives the engine and players directly (no web server) and appends one
+JSON record per game to a JSONL file (git-ignored). From `backend/`:
+
+```bash
+# Round-robin: every pair of the cheap models, 5 games each
+../.venv/bin/python -m codenames.tournament run --games 5
+
+# A single matchup
+../.venv/bin/python -m codenames.tournament run --matchup nova-micro nova-lite --games 10
+
+# Analyze whatever has been recorded so far
+../.venv/bin/python -m codenames.tournament stats
+```
+
+To keep the first-move edge fair, each pairing alternates which model plays red.
+`stats` prints per-model win rates, a head-to-head matrix, and a status/outcome
+breakdown. Each record includes the models, winner, tokens, cost, and how the
+game ended (all-cards vs assassin). Results default to `results/games.jsonl`
+(override with `--results` or `CODENAMES_RESULTS`); each game is capped by a USD
+budget and a max-turn limit.
+
 ## Development
 
 From `backend/`:

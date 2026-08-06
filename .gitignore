@@ -22,3 +22,7 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+
+# Tournament results (recorded locally)
+results/
+*.jsonl

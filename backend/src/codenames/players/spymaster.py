@@ -28,22 +28,28 @@ class LLMSpymaster:
 
     def give_clue(self, game: Game, team: Team) -> ClueDecision:
         system, user = build_spymaster_prompt(game, team)
-        # Cheap models occasionally emit malformed/truncated JSON — retry a few times.
+        # A clue may not be a word still on the board (the engine rejects it too).
+        on_board = {
+            c["word"].upper() for c in game.spymaster_state()["cards"] if not c["revealed"]
+        }
+        # Cheap models occasionally emit malformed JSON or an on-board clue — retry.
         last_error: ValueError | None = None
         for _ in range(self.attempts):
             result = self.engine.run(system, user, self.model)
             try:
-                return self._parse(result)
+                return self._parse(result, on_board)
             except ValueError as exc:
                 last_error = exc
         raise last_error  # type: ignore[misc]
 
-    def _parse(self, result) -> ClueDecision:
+    def _parse(self, result, on_board: set[str]) -> ClueDecision:
         data = extract_json(result.text)
 
         word = str(data.get("clue", "")).strip()
         if not word or any(ch.isspace() for ch in word):
             raise ValueError(f"spymaster returned an invalid clue word: {data!r}")
+        if word.upper() in on_board:
+            raise ValueError(f"spymaster clue {word!r} is a word on the board")
         try:
             number = int(data["number"])
         except (KeyError, TypeError, ValueError) as exc:
